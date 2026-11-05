@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. Choose solo practice for a randomly generated secret or pass-and-play to set a private four-digit secret before handing the device to the guesser. Guesses may contain repeated digits; feedback counts each secret digit once and prioritizes exact-position matches.
+Open http://localhost:3000. Choose solo practice for a randomly generated secret or pass-and-play to set a private four-digit secret before handing the device to the guesser. Guesses may contain repeated digits; feedback counts each secret digit once and prioritizes exact-position matches. Match scores are saved in this browser on this device.
 
 ## Stack
 
