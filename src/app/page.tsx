@@ -1,40 +1,56 @@
 "use client";
+
 import { useState } from "react";
 import { createSecret, isWinningGuess, scoreGuess, type GuessResult } from "@/game/engine";
 
+type GameMode = "solo" | "two-player";
+type Phase = "setup" | "secret" | "handoff" | "guessing" | "won" | "lost";
+
 export default function Home() {
+  const [phase, setPhase] = useState<Phase>("setup");
   const [secret, setSecret] = useState("");
+  const [secretInput, setSecretInput] = useState("");
   const [guess, setGuess] = useState("");
   const [history, setHistory] = useState<GuessResult[]>([]);
   const [turn, setTurn] = useState(1);
-  const [phase, setPhase] = useState<"setup" | "playing" | "won" | "lost">("setup");
   const [error, setError] = useState("");
 
-  function start() {
-    setSecret(createSecret()); setGuess(""); setHistory([]); setTurn(1); setError(""); setPhase("playing");
+  function startGame(selectedMode: GameMode) {
+    setGuess(""); setSecretInput(""); setHistory([]); setTurn(1); setError("");
+    if (selectedMode === "solo") { setSecret(createSecret()); setPhase("guessing"); }
+    else setPhase("secret");
   }
 
-  function submit(event: React.FormEvent<HTMLFormElement>) {
+  function setTwoPlayerSecret(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!/^\d{4}$/.test(guess)) { setError("Enter exactly four digits."); return; }
+    if (!/^\d{4}$/.test(secretInput)) { setError("Choose exactly four digits for the secret code."); return; }
+    setSecret(secretInput); setSecretInput(""); setError(""); setPhase("handoff");
+  }
+
+  function submitGuess(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!/^\d{4}$/.test(guess)) { setError("Enter exactly four digits to make your guess."); return; }
     const marks = scoreGuess(secret, guess);
-    setHistory((old) => [{ guess, marks }, ...old]); setGuess(""); setError("");
+    setHistory((previous) => [{ guess, marks }, ...previous]); setError(""); setGuess("");
     if (isWinningGuess(marks)) setPhase("won");
     else if (turn >= 8) setPhase("lost");
-    setTurn((value) => value + 1);
+    setTurn((previous) => previous + 1);
   }
 
   const ended = phase === "won" || phase === "lost";
   return <main className="shell">
-    <header className="top"><a className="brand" href="#"><b>✳</b> code caper</a><span>A LITTLE FRIENDLY RIVALRY</span></header>
-    <section className="layout">
-      <aside><small>● &nbsp;THE CODE IS WAITING</small><h1>Crack the code.<br/><i>Keep your cool.</i></h1><p className="lede">One secret. Eight tries. A very smug opponent if you don’t get it.</p><div className="guide"><label>YOUR FIELD GUIDE</label><p><b className="green">●</b> Right digit, right place</p><p><b className="gold">◐</b> Right digit, wrong place</p><p><b className="gray">×</b> Not in the code</p></div><p className="hint">Repeated digits are allowed. Read every clue carefully.</p></aside>
-      <section className="board"><div className="boardHead"><div><small>THE BREAKER’S BOARD</small><h2>{phase === "setup" ? "Ready when you are." : phase === "won" ? "Beautifully done." : phase === "lost" ? "The code got away." : "Your next move."}</h2></div><strong>{phase === "setup" ? "—" : Math.min(turn - 1, 8)}<small> / 8<br/>TRIES</small></strong></div>
-      {phase === "setup" ? <div className="start"><div className="vault">▦</div><small>PASS &amp; PLAY · TWO PLAYERS</small><h3>Who’s cracking<br/>the code?</h3><p>Player one sets a four-digit secret. Player two gets eight guesses and clues after every try.</p><button onClick={start}>Set up the game <b>↗</b></button><small className="privacy">◉ Secret stays on this device</small></div> : <>
-        <div className="history">{history.length === 0 ? <div className="empty"><span>◎</span><b>Your clues will land here.</b><small>Every guess narrows the field.</small></div> : history.map((row, index) => <div className="row" key={index}><small>{String(history.length - index).padStart(2, "0")}</small><div className="digits">{row.guess.split("").map((digit, slot) => <span className={row.marks[slot]} key={slot}>{digit}</span>)}</div><div className="dots">{row.marks.map((mark, slot) => <i className={mark} key={slot}/>)}</div></div>)}</div>
-        {ended ? <div className="result"><b>{phase === "won" ? "✳ You cracked it" : `The secret was ${secret}`}</b><button onClick={start}>Play again ↗</button></div> : <form onSubmit={submit}><label>GUESS {String(turn).padStart(2, "0")} · FOUR DIGITS</label><div className="entry"><input aria-label="Four digit guess" inputMode="numeric" maxLength={4} placeholder="0  0  0  0" value={guess} onChange={(event) => setGuess(event.target.value.replace(/\D/g, "").slice(0, 4))}/><button aria-label="Submit guess">↗</button></div><small className="error">{error || `${9 - turn} guesses left`}</small></form>}
+    <header className="topbar"><a className="brand" href="#" aria-label="Code Caper home"><span className="brand-icon">✳</span> code caper</a><span className="edition">A LITTLE FRIENDLY RIVALRY</span><button className="help" title="Choose a game mode" onClick={() => setPhase("setup")}>?</button></header>
+    <section className="game-layout">
+      <div className="intro"><div className="eyebrow"><span className="live-dot" /> THE CODE IS WAITING</div><h1>Crack the code.<br /><em>Keep your cool.</em></h1><p className="lede">One secret. Eight tries. A very smug opponent if you don’t get it.</p><div className="rule-card"><div className="rule-title">YOUR FIELD GUIDE <span>01 — 03</span></div><div className="rule"><span className="rule-icon coral">●</span><p><b>Right digit, right place</b><br /><span>That digit is exactly where it belongs.</span></p></div><div className="rule"><span className="rule-icon gold">◐</span><p><b>Right digit, wrong place</b><br /><span>It’s in the code, just not there.</span></p></div><div className="rule"><span className="rule-icon muted">×</span><p><b>Not in the code</b><br /><span>That digit’s a red herring.</span></p></div></div><div className="note"><span>✳</span> Repeated digits are allowed. Read every clue carefully.</div></div>
+      <div className="board-wrap"><div className="board-head"><div><div className="board-label">THE BREAKER’S BOARD</div><div className="board-title">{phase === "setup" ? "Ready when you are." : phase === "won" ? "Beautifully done." : phase === "lost" ? "The code got away." : "Your next move."}</div></div><div className="tries"><span>{phase === "setup" ? "—" : Math.min(turn - 1, 8)}</span><small> / 8<br />TRIES</small></div></div>
+      {phase === "setup" ? <div className="start-panel mode-panel"><div className="vault">▦</div><p className="panel-kicker">PICK YOUR WAY TO PLAY</p><h2>One code.<br />Two ways in.</h2><p>Practice against a secret code or challenge a friend on the same device.</p><button className="primary mode-button" onClick={() => startGame("solo")}><span><b>Solo practice</b><small>Crack a randomly generated code</small></span><span>↗</span></button><button className="secondary mode-button" onClick={() => startGame("two-player")}><span><b>Two-player pass &amp; play</b><small>One sets the code, one cracks it</small></span><span>↗</span></button><div className="privacy"><span>◉</span> Secret stays on this device</div></div>
+      : phase === "secret" ? <div className="start-panel"><div className="vault">⌑</div><p className="panel-kicker">PLAYER ONE · SECRET SETUP</p><h2>Choose a code.<br />Keep it hidden.</h2><p>Pick any four digits, including repeats. Hand the device over after you set it.</p><form className="guess-form setup-form" onSubmit={setTwoPlayerSecret}><label htmlFor="secret-code">YOUR SECRET · FOUR DIGITS</label><div className="input-line"><input id="secret-code" inputMode="numeric" autoComplete="off" maxLength={4} placeholder="0  0  0  0" value={secretInput} onChange={(event) => setSecretInput(event.target.value.replace(/\D/g, "").slice(0, 4))} /><button className="submit" type="submit" aria-label="Set secret code">↗</button></div><div className="form-foot"><span className="error">{error}</span><span>Only you should see this</span></div></form></div>
+      : phase === "handoff" ? <div className="start-panel"><div className="vault">⇄</div><p className="panel-kicker">PASS THE DEVICE</p><h2>Code is locked.<br />Eyes off, player two.</h2><p>Make sure Player One can’t see the screen. Player Two gets eight tries to crack the code.</p><button className="primary" onClick={() => setPhase("guessing")}>I’m ready to guess <span>↗</span></button><div className="privacy"><span>◉</span> Your code stays on this device</div></div>
+      : <>
+        <div className="history" aria-live="polite">{history.length === 0 ? <div className="empty-state"><div className="target">◎</div><b>Your clues will land here.</b><span>Every guess narrows the field.</span></div> : history.map((row, index) => <div className="guess-row" key={`${row.guess}-${index}`}><span className="guess-number">{String(history.length - index).padStart(2, "0")}</span><div className="digits">{row.guess.split("").map((digit, slot) => <span className={`digit ${row.marks[slot]}`} key={slot}>{digit}</span>)}</div><div className="marks" aria-label={row.marks.join(", ")}>{row.marks.map((mark, slot) => <span className={`mark ${mark}`} key={slot} title={mark} />)}</div></div>)}</div>
+        {ended ? <div className="result"><span>{phase === "won" ? "✳ You cracked it" : `The secret was ${secret}`}</span><button className="again" onClick={() => setPhase("setup")}>New game ↗</button></div> : <form className="guess-form" onSubmit={submitGuess}><label htmlFor="guess">GUESS {String(turn).padStart(2, "0")} <span>· FOUR DIGITS</span></label><div className="input-line"><input id="guess" inputMode="numeric" autoComplete="off" maxLength={4} placeholder="0  0  0  0" value={guess} onChange={(event) => setGuess(event.target.value.replace(/\D/g, "").slice(0, 4))} aria-describedby="guess-error" /><button className="submit" type="submit" aria-label="Submit guess">↗</button></div><div className="form-foot"><span id="guess-error" className="error">{error}</span><span>{8 - turn + 1} guesses left</span></div></form>}
       </>}
-      <footer>CODE CAPER <i>×</i> THINKING CAP <span>NO LUCK. JUST LOGIC.</span></footer></section>
-    </section><div className="bottom">MADE FOR THE MOMENT BETWEEN “I KNOW IT” AND “GOT IT.” <span>LOCAL GAME · NO ACCOUNT NEEDED</span></div>
+      <div className="board-foot"><span>CODE CAPER <i>×</i> THINKING CAP</span><span>NO LUCK. JUST LOGIC.</span></div></div>
+    </section><footer className="footer"><span>MADE FOR THE MOMENT BETWEEN “I KNOW IT” AND “GOT IT.”</span><span>LOCAL GAME · NO ACCOUNT NEEDED</span></footer>
   </main>;
 }
