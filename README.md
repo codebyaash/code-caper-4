@@ -19,4 +19,6 @@ Next.js App Router, TypeScript, React, and Tailwind CSS 4.
 
 ## Online multiplayer foundation
 
-`src/game/online-session.ts` defines the client and transport contract for future online sessions. The snapshot intentionally contains no secret code; an online adapter will send secret setup and guesses to an authoritative server, which owns validation, scoring, turn order, and outcome. The current app does not connect to an online server yet.
+The server-side session service owns secret codes, validates guesses, and advances turns. `src/game/upstash-store.ts` stores short-lived rooms in Upstash Redis with atomic revision checks; rooms expire after one hour. Session snapshots never include the secret. The route handlers expose room creation/joining and authenticated session actions, but the current game interface is still local-only.
+
+To enable the API locally, create an Upstash Redis database and copy its REST URL and token into `.env.local` using the names in `.env.example`. Keep these credentials server-side. The API is available at `POST /api/online/rooms` with `{ "action": "create" }` or `{ "action": "join", "roomCode": "…" }`. Use `POST /api/online/rooms/[roomCode]` with the returned bearer token and an action of `reconnect`, `set-secret`, or `guess`.
