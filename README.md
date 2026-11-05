@@ -16,3 +16,7 @@ Open http://localhost:3000. Choose solo practice for a randomly generated secret
 ## Stack
 
 Next.js App Router, TypeScript, React, and Tailwind CSS 4.
+
+## Online multiplayer foundation
+
+`src/game/online-session.ts` defines the client and transport contract for future online sessions. The snapshot intentionally contains no secret code; an online adapter will send secret setup and guesses to an authoritative server, which owns validation, scoring, turn order, and outcome. The current app does not connect to an online server yet.
