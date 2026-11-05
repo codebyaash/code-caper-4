@@ -16,7 +16,8 @@ export function createHttpOnlineGameAdapter(): OnlineGameAdapter {
   async function openSession(roomCode: string, participantToken: string, initial: OnlineSessionSnapshot): Promise<OnlineSession> {
     let snapshot = initial;
     let stopped = false;
-    let requestInProgress = false;
+    let requestQueue = Promise.resolve();
+    let pollInProgress = false;
     const listeners = new Set<(value: OnlineSessionSnapshot) => void>();
 
     function update(next: OnlineSessionSnapshot) {
@@ -25,8 +26,10 @@ export function createHttpOnlineGameAdapter(): OnlineGameAdapter {
     }
 
     async function perform(action: Action): Promise<OnlineSessionSnapshot> {
-      if (requestInProgress) throw new Error("A session request is already in progress");
-      requestInProgress = true;
+      const previousRequest = requestQueue;
+      let releaseRequest = () => {};
+      requestQueue = new Promise<void>((resolve) => { releaseRequest = resolve; });
+      await previousRequest;
       try {
         const response = await fetch(`/api/online/rooms/${roomCode}`, {
           method: "POST",
@@ -38,13 +41,15 @@ export function createHttpOnlineGameAdapter(): OnlineGameAdapter {
         update(next);
         return next;
       } finally {
-        requestInProgress = false;
+        releaseRequest();
       }
     }
 
     const poll = window.setInterval(async () => {
-      if (stopped || requestInProgress) return;
+      if (stopped || pollInProgress) return;
+      pollInProgress = true;
       try { await perform({ action: "reconnect" }); } catch { }
+      finally { pollInProgress = false; }
     }, 1800);
 
     return {
