@@ -1,17 +1,21 @@
 import type { GuessResult } from "./engine.ts";
 
 export type OnlinePlayerRole = "creator" | "opponent";
-export type OnlineSessionStatus = "waiting" | "setting-secret" | "guessing" | "won" | "lost";
+export type OnlineSessionStatus = "waiting" | "setting-secrets" | "guessing" | "won" | "lost" | "draw";
+export type OnlineGuess = GuessResult & { player: OnlinePlayerRole };
 
 export type OnlineSessionSnapshot = {
   roomCode: string;
   status: OnlineSessionStatus;
   yourRole: OnlinePlayerRole;
+  yourSecretSet: boolean;
+  otherSecretSet: boolean;
+  activePlayer?: OnlinePlayerRole;
   turnNumber: number;
   attemptsRemaining: number;
-  guesses: GuessResult[];
+  guesses: OnlineGuess[];
   winner?: OnlinePlayerRole;
-  revealedSecret?: string;
+  revealedSecrets?: Partial<Record<OnlinePlayerRole, string>>;
 };
 
 export type OnlineSession = {
