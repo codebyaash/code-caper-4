@@ -81,15 +81,13 @@ export default function OnlinePlay({ onExit }: { onExit: () => void }) {
   async function submitSecret(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!/^\d{4}$/.test(secret)) { setError("Enter exactly four digits."); return; }
-    if (session) await run(() => session.setSecret(secret));
-    setSecret("");
+    if (session && await run(() => session.setSecret(secret))) setSecret("");
   }
 
   async function submitGuess(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!/^\d{4}$/.test(guess)) { setError("Enter exactly four digits."); return; }
-    if (session) await run(() => session.submitGuess(guess));
-    setGuess("");
+    if (session && await run(() => session.submitGuess(guess))) setGuess("");
   }
 
   async function exitOnline() {
