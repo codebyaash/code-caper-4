@@ -37,6 +37,7 @@ describe("online session service", () => {
     assert.equal(result.status, "won");
     assert.equal(result.winner, "opponent");
     assert.equal("secret" in result, false);
+    assert.equal(result.revealedSecret, "1122");
   });
 
   it("awards the code setter the win after eight missed guesses", async () => {
