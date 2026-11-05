@@ -32,6 +32,9 @@ export async function POST(request: Request, context: RouteContext) {
     if (input.action === "guess" && typeof input.guess === "string") {
       return Response.json(await gameService.submitGuess(roomCode, participantToken, input.guess), { headers: { "Cache-Control": "no-store" } });
     }
+    if (input.action === "rematch") {
+      return Response.json(await gameService.requestRematch(roomCode, participantToken), { headers: { "Cache-Control": "no-store" } });
+    }
     return Response.json({ error: "INVALID_REQUEST" }, { status: 400 });
   } catch (error) {
     return errorResponse(error);

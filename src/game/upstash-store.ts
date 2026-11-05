@@ -1,6 +1,8 @@
 import type { OnlineGameRecord, OnlineGameStore } from "./online-service.ts";
 
-const roomTtlSeconds = 60 * 60;
+function remainingTtl(expiresAt = Date.now() + 60 * 60 * 1000): number {
+  return Math.max(1, Math.ceil((expiresAt - Date.now()) / 1000));
+}
 const compareAndSwapScript = `
 local value = redis.call("GET", KEYS[1])
 if not value then return 0 end
@@ -41,14 +43,14 @@ export class UpstashOnlineGameStore implements OnlineGameStore {
   }
 
   async create(record: OnlineGameRecord): Promise<void> {
-    const result = await this.command<string | null>("SET", `code-caper:room:v2:${record.roomCode}`, JSON.stringify(record), "EX", roomTtlSeconds, "NX");
+    const result = await this.command<string | null>("SET", `code-caper:room:v2:${record.roomCode}`, JSON.stringify(record), "EX", remainingTtl(record.expiresAt), "NX");
     if (!result) throw new Error("Online room code collision");
   }
 
   async compareAndSwap(record: OnlineGameRecord, expectedRevision: number): Promise<boolean> {
     const updated = await this.command<number>(
       "EVAL", compareAndSwapScript, 1, `code-caper:room:v2:${record.roomCode}`,
-      expectedRevision, JSON.stringify(record), roomTtlSeconds,
+      expectedRevision, JSON.stringify(record), remainingTtl(record.expiresAt),
     );
     return updated === 1;
   }

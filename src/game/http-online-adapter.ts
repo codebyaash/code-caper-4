@@ -1,7 +1,7 @@
 import type { OnlineGameAdapter, OnlineSession, OnlineSessionSnapshot } from "./online-session.ts";
 
 type SessionResponse = { snapshot: OnlineSessionSnapshot; participantToken: string };
-type Action = { action: string; [key: string]: string };
+type Action = { action: string; [key: string]: string | number };
 
 async function readResponse<T>(response: Response): Promise<T> {
   const body: unknown = await response.json();
@@ -57,6 +57,7 @@ export function createHttpOnlineGameAdapter(): OnlineGameAdapter {
       getSnapshot: () => snapshot,
       setSecret: (secret) => perform({ action: "set-secret", secret }),
       submitGuess: (guess) => perform({ action: "guess", guess }),
+      requestRematch: () => perform({ action: "rematch" }),
       subscribe(listener) {
         listeners.add(listener);
         listener(snapshot);
@@ -70,11 +71,11 @@ export function createHttpOnlineGameAdapter(): OnlineGameAdapter {
     };
   }
 
-  async function createOrJoin(action: "create" | "join", roomCode?: string): Promise<OnlineSession> {
+  async function createOrJoin(action: "create" | "join", name: string, settings?: { secretLength: number; difficulty: string }, roomCode?: string): Promise<OnlineSession> {
     const response = await fetch("/api/online/rooms", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(roomCode ? { action, roomCode } : { action }),
+      body: JSON.stringify(roomCode ? { action, roomCode, name } : { action, name, ...settings }),
       cache: "no-store",
     });
     const result = await readResponse<SessionResponse>(response);
@@ -82,8 +83,8 @@ export function createHttpOnlineGameAdapter(): OnlineGameAdapter {
   }
 
   return {
-    createRoom: () => createOrJoin("create"),
-    joinRoom: (roomCode) => createOrJoin("join", roomCode.toUpperCase()),
+    createRoom: (name, secretLength, difficulty) => createOrJoin("create", name, { secretLength, difficulty }),
+    joinRoom: (roomCode, name) => createOrJoin("join", name, undefined, roomCode.toUpperCase()),
     async reconnect(roomCode, participantToken) {
       const snapshot = await fetch(`/api/online/rooms/${roomCode}`, {
         method: "POST",

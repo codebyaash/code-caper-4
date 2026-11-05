@@ -1,5 +1,5 @@
 import { randomInt, randomUUID } from "node:crypto";
-import { isWinningGuess, scoreGuess } from "./engine.ts";
+import { isValidCode, isWinningGuess, scoreGuess, type Difficulty, type SecretLength } from "./engine.ts";
 import type { OnlineGuess, OnlinePlayerRole, OnlineSessionSnapshot } from "./online-session";
 
 export type OnlineGameRecord = {
@@ -14,6 +14,13 @@ export type OnlineGameRecord = {
   winner?: OnlinePlayerRole;
   creatorSecret?: string;
   opponentSecret?: string;
+  creatorName: string;
+  opponentName?: string;
+  secretLength: SecretLength;
+  difficulty: Difficulty;
+  expiresAt: number;
+  roundNumber: number;
+  rematchRequests?: Partial<Record<OnlinePlayerRole, boolean>>;
   creatorToken: string;
   opponentToken?: string;
 };
@@ -56,6 +63,13 @@ function toSnapshot(record: OnlineGameRecord, role: OnlinePlayerRole): OnlineSes
     turnNumber: record.turnNumber,
     attemptsRemaining: role === "creator" ? record.creatorAttemptsRemaining : record.opponentAttemptsRemaining,
     guesses: record.guesses,
+    playerNames: { creator: record.creatorName || "Player One", opponent: record.opponentName || "Player Two" },
+    secretLength: record.secretLength ?? 4,
+    difficulty: record.difficulty ?? "classic",
+    expiresAt: record.expiresAt ?? Date.now() + 60 * 60 * 1000,
+    roundNumber: record.roundNumber ?? 1,
+    rematchRequested: Boolean(record.rematchRequests?.[role]),
+    otherRematchRequested: Boolean(record.rematchRequests?.[role === "creator" ? "opponent" : "creator"]),
     winner: record.winner,
     revealedSecrets: finished ? { creator: record.creatorSecret, opponent: record.opponentSecret } : undefined,
   };
@@ -81,7 +95,9 @@ export function createOnlineGameService(store: OnlineGameStore) {
   }
 
   return {
-    async createRoom(): Promise<OnlineSessionAccess> {
+    async createRoom(name = "Player One", secretLength: SecretLength = 4, difficulty: Difficulty = "classic"): Promise<OnlineSessionAccess> {
+      const cleanName = name.trim().slice(0, 24);
+      if (!cleanName || (secretLength !== 4 && secretLength !== 5) || !["classic", "medium", "mystery"].includes(difficulty)) throw new OnlineGameError("INVALID_STATE");
       let roomCode = makeRoomCode();
       while (await store.get(roomCode)) roomCode = makeRoomCode();
       const record: OnlineGameRecord = {
@@ -92,18 +108,26 @@ export function createOnlineGameService(store: OnlineGameStore) {
         creatorAttemptsRemaining: 8,
         opponentAttemptsRemaining: 8,
         guesses: [],
+        creatorName: cleanName,
+        secretLength,
+        difficulty,
+        expiresAt: Date.now() + 60 * 60 * 1000,
+        roundNumber: 1,
         creatorToken: randomUUID(),
       };
       await store.create(record);
       return { snapshot: toSnapshot(record, "creator"), participantToken: record.creatorToken };
     },
 
-    async joinRoom(roomCode: string): Promise<OnlineSessionAccess> {
+    async joinRoom(roomCode: string, name = "Player Two"): Promise<OnlineSessionAccess> {
+      const cleanName = name.trim().slice(0, 24);
+      if (!cleanName) throw new OnlineGameError("INVALID_STATE");
       const stored = await store.get(roomCode);
       if (!stored) throw new OnlineGameError("ROOM_NOT_FOUND");
       const record = structuredClone(stored);
       if (record.status !== "waiting") throw new OnlineGameError("ROOM_FULL");
       record.opponentToken = randomUUID();
+      record.opponentName = cleanName;
       record.status = "setting-secrets";
       if (!await store.compareAndSwap({ ...record, revision: record.revision + 1 }, record.revision)) throw new OnlineGameError("ROOM_FULL");
       record.revision += 1;
@@ -118,7 +142,7 @@ export function createOnlineGameService(store: OnlineGameStore) {
     async setSecret(roomCode: string, participantToken: string, secret: string): Promise<OnlineSessionSnapshot> {
       const { record, role } = await authorizedRecord(roomCode, participantToken);
       if (record.status !== "setting-secrets") throw new OnlineGameError("INVALID_STATE");
-      if (!/^\d{4}$/.test(secret)) throw new OnlineGameError("INVALID_SECRET");
+      if (!isValidCode(secret, record.secretLength ?? 4)) throw new OnlineGameError("INVALID_SECRET");
       if (role === "creator") {
         if (record.creatorSecret) throw new OnlineGameError("INVALID_STATE");
         record.creatorSecret = secret;
@@ -137,7 +161,7 @@ export function createOnlineGameService(store: OnlineGameStore) {
     async submitGuess(roomCode: string, participantToken: string, guess: string): Promise<OnlineSessionSnapshot> {
       const { record, role } = await authorizedRecord(roomCode, participantToken);
       if (record.status !== "guessing" || record.activePlayer !== role || !record.creatorSecret || !record.opponentSecret) throw new OnlineGameError("INVALID_STATE");
-      if (!/^\d{4}$/.test(guess)) throw new OnlineGameError("INVALID_GUESS");
+      if (!isValidCode(guess, record.secretLength ?? 4)) throw new OnlineGameError("INVALID_GUESS");
       const targetSecret = role === "creator" ? record.opponentSecret : record.creatorSecret;
       const marks = scoreGuess(targetSecret, guess);
       record.guesses = [...record.guesses, { guess, marks, player: role }];
@@ -151,6 +175,27 @@ export function createOnlineGameService(store: OnlineGameStore) {
       } else {
         record.activePlayer = role === "creator" ? "opponent" : "creator";
         record.turnNumber += 1;
+      }
+      await saveNextRevision(record);
+      return toSnapshot(record, role);
+    },
+
+    async requestRematch(roomCode: string, participantToken: string): Promise<OnlineSessionSnapshot> {
+      const { record, role } = await authorizedRecord(roomCode, participantToken);
+      if (!["won", "lost", "draw"].includes(record.status)) throw new OnlineGameError("INVALID_STATE");
+      record.rematchRequests = { ...record.rematchRequests, [role]: true };
+      if (record.rematchRequests.creator && record.rematchRequests.opponent) {
+        record.status = "setting-secrets";
+        record.turnNumber = 1;
+        record.creatorAttemptsRemaining = 8;
+        record.opponentAttemptsRemaining = 8;
+        record.guesses = [];
+        record.activePlayer = undefined;
+        record.winner = undefined;
+        record.creatorSecret = undefined;
+        record.opponentSecret = undefined;
+        record.rematchRequests = {};
+        record.roundNumber = (record.roundNumber ?? 1) + 1;
       }
       await saveNextRevision(record);
       return toSnapshot(record, role);
