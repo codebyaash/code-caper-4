@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createHttpOnlineGameAdapter } from "@/game/http-online-adapter";
 import type { OnlineSession, OnlineSessionSnapshot } from "@/game/online-session";
 
@@ -25,9 +25,10 @@ export default function OnlinePlay({ onExit }: { onExit: () => void }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const adapter = createHttpOnlineGameAdapter();
+  const adapter = useMemo(() => createHttpOnlineGameAdapter(), []);
 
   useEffect(() => {
+    let cancelled = false;
     let activeSession: OnlineSession | null = null;
     let unsubscribe: (() => void) | null = null;
     try {
@@ -35,6 +36,7 @@ export default function OnlinePlay({ onExit }: { onExit: () => void }) {
         const credentials: SavedSession | null = saved ? JSON.parse(saved) as SavedSession : null;
       if (!credentials?.roomCode || !credentials.participantToken) return;
       void adapter.reconnect(credentials.roomCode, credentials.participantToken).then((restored) => {
+        if (cancelled) { void restored.leave(); return; }
         activeSession = restored;
         setSession(restored);
         setSnapshot(restored.getSnapshot());
@@ -43,8 +45,8 @@ export default function OnlinePlay({ onExit }: { onExit: () => void }) {
     } catch {
       sessionStorage.removeItem(savedSessionKey);
     }
-    return () => { unsubscribe?.(); void activeSession?.leave(); };
-  }, []);
+    return () => { cancelled = true; unsubscribe?.(); void activeSession?.leave(); };
+  }, [adapter]);
 
   async function run(action: () => Promise<OnlineSession | OnlineSessionSnapshot>) {
     setBusy(true); setError("");
