@@ -1,0 +1,1 @@
+import type { Metadata } from "next";\nimport "./globals.css";\nexport const metadata: Metadata = { title: "Code Caper — Crack the code", description: "A pass-and-play code-breaking game for two sharp minds." };\nexport default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) { return <html lang="en"><body>{children}</body></html>; }\n
