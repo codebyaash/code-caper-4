@@ -1,4 +1,4 @@
-import type { GuessResult } from "./engine";
+import type { GuessResult } from "./engine.ts";
 
 export type OnlinePlayerRole = "creator" | "opponent";
 export type OnlineSessionStatus = "waiting" | "setting-secret" | "guessing" | "won" | "lost";
