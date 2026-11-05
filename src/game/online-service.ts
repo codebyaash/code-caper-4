@@ -38,7 +38,7 @@ export class OnlineGameError extends Error {
 
 function makeRoomCode(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  return Array.from({ length: 6 }, () => alphabet[randomInt(alphabet.length)]).join("");
+  return Array.from({ length: 8 }, () => alphabet[randomInt(alphabet.length)]).join("");
 }
 
 function toSnapshot(record: OnlineGameRecord, role: OnlinePlayerRole): OnlineSessionSnapshot {
