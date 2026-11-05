@@ -11,9 +11,11 @@ export type OnlineSessionSnapshot = {
   attemptsRemaining: number;
   guesses: GuessResult[];
   winner?: OnlinePlayerRole;
+  revealedSecret?: string;
 };
 
 export type OnlineSession = {
+  participantToken: string;
   getSnapshot(): OnlineSessionSnapshot;
   setSecret(secret: string): Promise<OnlineSessionSnapshot>;
   submitGuess(guess: string): Promise<OnlineSessionSnapshot>;
@@ -24,5 +26,5 @@ export type OnlineSession = {
 export type OnlineGameAdapter = {
   createRoom(): Promise<OnlineSession>;
   joinRoom(roomCode: string): Promise<OnlineSession>;
-  reconnect(roomCode: string): Promise<OnlineSession>;
+  reconnect(roomCode: string, participantToken: string): Promise<OnlineSession>;
 };
