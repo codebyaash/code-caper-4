@@ -50,6 +50,7 @@ function toSnapshot(record: OnlineGameRecord, role: OnlinePlayerRole): OnlineSes
     attemptsRemaining: record.attemptsRemaining,
     guesses: record.guesses,
     winner: record.winner,
+    revealedSecret: record.status === "won" || record.status === "lost" ? record.secret : undefined,
   };
 }
 
