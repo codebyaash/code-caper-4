@@ -23,8 +23,8 @@ export async function POST(request: Request) {
     if (!body || typeof body !== "object") return Response.json({ error: "INVALID_REQUEST" }, { status: 400 });
     const input = body as Record<string, unknown>;
     const gameService = service();
-    if (input.action === "create" && typeof input.name === "string" && (input.secretLength === 4 || input.secretLength === 5) && (input.difficulty === "classic" || input.difficulty === "medium" || input.difficulty === "mystery")) {
-      return Response.json(await gameService.createRoom(input.name, input.secretLength as SecretLength, input.difficulty as Difficulty), { headers: { "Cache-Control": "no-store" } });
+    if (input.action === "create" && typeof input.name === "string" && (input.secretLength === 4 || input.secretLength === 5) && (input.difficulty === "classic" || input.difficulty === "medium" || input.difficulty === "mystery") && (input.unlimitedTries === undefined || typeof input.unlimitedTries === "boolean")) {
+      return Response.json(await gameService.createRoom(input.name, input.secretLength as SecretLength, input.difficulty as Difficulty, input.unlimitedTries === true), { headers: { "Cache-Control": "no-store" } });
     }
     if (input.action === "join" && typeof input.roomCode === "string" && /^[A-Z0-9]{6,8}$/.test(input.roomCode) && typeof input.name === "string") {
       return Response.json(await gameService.joinRoom(input.roomCode, input.name), { headers: { "Cache-Control": "no-store" } });
