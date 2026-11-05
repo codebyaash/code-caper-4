@@ -1,22 +1,50 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createSecret, isWinningGuess, scoreGuess, type GuessResult } from "@/game/engine";
 
 type GameMode = "solo" | "two-player";
 type Phase = "setup" | "secret" | "handoff" | "guessing" | "won" | "lost";
 type Scoreboard = { soloWins: number; soloGames: number; playerOneWins: number; playerTwoWins: number };
+const scoreStorageKey = "code-caper:scores:v1";
+const emptyScores: Scoreboard = { soloWins: 0, soloGames: 0, playerOneWins: 0, playerTwoWins: 0 };
+
+function readSavedScores(): Scoreboard {
+  try {
+    const stored = localStorage.getItem(scoreStorageKey);
+    if (!stored) return emptyScores;
+    const value: unknown = JSON.parse(stored);
+    if (!value || typeof value !== "object") return emptyScores;
+    const candidate = value as Record<string, unknown>;
+    const count = (key: keyof Scoreboard) => Number.isSafeInteger(candidate[key]) && Number(candidate[key]) >= 0 ? Number(candidate[key]) : 0;
+    return { soloWins: count("soloWins"), soloGames: count("soloGames"), playerOneWins: count("playerOneWins"), playerTwoWins: count("playerTwoWins") };
+  } catch {
+    return emptyScores;
+  }
+}
 
 export default function Home() {
   const [phase, setPhase] = useState<Phase>("setup");
   const [mode, setMode] = useState<GameMode>("solo");
-  const [scores, setScores] = useState<Scoreboard>({ soloWins: 0, soloGames: 0, playerOneWins: 0, playerTwoWins: 0 });
+  const [scores, setScores] = useState<Scoreboard>(emptyScores);
+  const [scoresLoaded, setScoresLoaded] = useState(false);
   const [secret, setSecret] = useState("");
   const [secretInput, setSecretInput] = useState("");
   const [guess, setGuess] = useState("");
   const [history, setHistory] = useState<GuessResult[]>([]);
   const [turn, setTurn] = useState(1);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    setScores(readSavedScores());
+    setScoresLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (scoresLoaded) {
+      try { localStorage.setItem(scoreStorageKey, JSON.stringify(scores)); } catch { }
+    }
+  }, [scores, scoresLoaded]);
 
   function startGame(selectedMode: GameMode) {
     setMode(selectedMode);
@@ -71,7 +99,7 @@ export default function Home() {
           <div className="board-foot"><span>CODE CAPER <i>×</i> THINKING CAP</span><span>NO LUCK. JUST LOGIC.</span></div>
         </div>
       </section>
-      <footer className="footer"><span>MADE FOR THE MOMENT BETWEEN “I KNOW IT” AND “GOT IT.”</span><span>LOCAL GAME · NO ACCOUNT NEEDED</span></footer>
+      <footer className="footer"><span>MADE FOR THE MOMENT BETWEEN “I KNOW IT” AND “GOT IT.”</span><span>SCORES SAVED ON THIS DEVICE</span></footer>
     </main>
   );
 }
