@@ -36,18 +36,18 @@ export class UpstashOnlineGameStore implements OnlineGameStore {
   }
 
   async get(roomCode: string): Promise<OnlineGameRecord | undefined> {
-    const value = await this.command<string | null>("GET", `code-caper:room:${roomCode}`);
+    const value = await this.command<string | null>("GET", `code-caper:room:v2:${roomCode}`);
     return value ? JSON.parse(value) as OnlineGameRecord : undefined;
   }
 
   async create(record: OnlineGameRecord): Promise<void> {
-    const result = await this.command<string | null>("SET", `code-caper:room:${record.roomCode}`, JSON.stringify(record), "EX", roomTtlSeconds, "NX");
+    const result = await this.command<string | null>("SET", `code-caper:room:v2:${record.roomCode}`, JSON.stringify(record), "EX", roomTtlSeconds, "NX");
     if (!result) throw new Error("Online room code collision");
   }
 
   async compareAndSwap(record: OnlineGameRecord, expectedRevision: number): Promise<boolean> {
     const updated = await this.command<number>(
-      "EVAL", compareAndSwapScript, 1, `code-caper:room:${record.roomCode}`,
+      "EVAL", compareAndSwapScript, 1, `code-caper:room:v2:${record.roomCode}`,
       expectedRevision, JSON.stringify(record), roomTtlSeconds,
     );
     return updated === 1;
