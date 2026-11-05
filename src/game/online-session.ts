@@ -12,7 +12,8 @@ export type OnlineSessionSnapshot = {
   otherSecretSet: boolean;
   activePlayer?: OnlinePlayerRole;
   turnNumber: number;
-  attemptsRemaining: number;
+  attemptsRemaining: number | null;
+  unlimitedTries: boolean;
   guesses: OnlineGuess[];
   playerNames: Record<OnlinePlayerRole, string>;
   secretLength: SecretLength;
@@ -36,7 +37,7 @@ export type OnlineSession = {
 };
 
 export type OnlineGameAdapter = {
-  createRoom(name: string, secretLength: SecretLength, difficulty: Difficulty): Promise<OnlineSession>;
+  createRoom(name: string, secretLength: SecretLength, difficulty: Difficulty, unlimitedTries?: boolean): Promise<OnlineSession>;
   joinRoom(roomCode: string, name: string): Promise<OnlineSession>;
   reconnect(roomCode: string, participantToken: string): Promise<OnlineSession>;
 };

@@ -30,7 +30,7 @@ function OnlineGuessRow({ row, index, difficulty }: { row: OnlineGuess; index: n
   return <div className="guess-row"><span className="guess-number">{String(index + 1).padStart(2, "0")}</span><div className="digits">{row.guess.split("").map((digit, slot) => <span className={`digit ${row.marks[slot]}`} key={slot}>{digit}</span>)}</div><div className="marks">{row.marks.map((mark, slot) => <span className={`mark ${mark}`} key={slot}/>)}</div></div>;
 }
 
-export default function OnlinePlay({ onExit, secretLength, difficulty }: { onExit: () => void; secretLength: SecretLength; difficulty: Difficulty }) {
+export default function OnlinePlay({ onExit, secretLength, difficulty, unlimitedTries }: { onExit: () => void; secretLength: SecretLength; difficulty: Difficulty; unlimitedTries: boolean }) {
   const [session, setSession] = useState<OnlineSession | null>(null);
   const [snapshot, setSnapshot] = useState<OnlineSessionSnapshot | null>(null);
   const [roomCodeInput, setRoomCodeInput] = useState("");
@@ -83,7 +83,7 @@ export default function OnlinePlay({ onExit, secretLength, difficulty }: { onExi
   }
 
   async function createRoom() {
-    const created = await run(() => adapter.createRoom(playerName.trim(), secretLength, difficulty));
+    const created = await run(() => adapter.createRoom(playerName.trim(), secretLength, difficulty, unlimitedTries));
     if (created && "getSnapshot" in created) setPlayerName("");
   }
 
@@ -126,7 +126,7 @@ export default function OnlinePlay({ onExit, secretLength, difficulty }: { onExi
   function guessColumn(role: OnlinePlayerRole) {
     const rows = snapshot?.guesses.filter((row) => row.player === role) ?? [];
     const name = snapshot?.playerNames[role] ?? (role === "creator" ? "Player One" : "Player Two");
-    return <section className="player-board online-player-board" key={role} aria-label={`${name} guesses`}><h3>{name}<small>{rows.length} / 8 guesses</small></h3><div className="player-history" aria-live="polite">{rows.length ? rows.map((row, index) => <OnlineGuessRow key={`${row.guess}-${index}`} row={row} index={index} difficulty={gameDifficulty} />) : <span className="quiet-empty">Guesses will appear here.</span>}</div></section>;
+    return <section className="player-board online-player-board" key={role} aria-label={`${name} guesses`}><h3>{name}<small>{rows.length} / {snapshot?.unlimitedTries ? "∞" : "8"} guesses</small></h3><div className="player-history" aria-live="polite">{rows.length ? rows.map((row, index) => <OnlineGuessRow key={`${row.guess}-${index}`} row={row} index={index} difficulty={gameDifficulty} />) : <span className="quiet-empty">Guesses will appear here.</span>}</div></section>;
   }
 
   return <main className="online-shell">
@@ -135,7 +135,7 @@ export default function OnlinePlay({ onExit, secretLength, difficulty }: { onExi
       <p className="panel-kicker">TWO PLAYERS · TWO DEVICES · ROUND {snapshot?.roundNumber ?? 1}</p>
       <h1>{!snapshot ? "Bring a friend into the game." : finished ? snapshot.status === "draw" ? "An even match." : won ? "A lovely bit of codebreaking." : "Your opponent cracked it." : snapshot.status === "waiting" ? "Your room is ready." : snapshot.status === "setting-secrets" && snapshot.yourSecretSet ? "Your code is locked." : snapshot.status === "setting-secrets" ? "Choose your secret code." : snapshot.status === "guessing" && isYourTurn ? "Your turn to crack the code." : "Your opponent is guessing."}</h1>
       {!snapshot ? <div className="online-lobby">
-        <p>Create a room and share its code, or enter a friend’s room code to join. Your room settings are {secretLength} digits · {difficulty === "classic" ? "Classic" : difficulty === "medium" ? "Medium" : "Hard"} clues.</p>
+        <p>Create a room and share its code, or enter a friend’s room code to join. Your room settings are {secretLength} digits · {difficulty === "classic" ? "Classic" : difficulty === "medium" ? "Medium" : "Hard"} clues · {unlimitedTries ? "unlimited guesses" : "8 guesses per player"}.</p>
         {!joinNameStep ? <>
           <label htmlFor="player-name">YOUR CODE NAME</label>
           <input id="player-name" className="name-input" maxLength={24} autoComplete="nickname" value={playerName} onChange={(event) => setPlayerName(event.target.value)} placeholder="Your name" />
@@ -156,7 +156,7 @@ export default function OnlinePlay({ onExit, secretLength, difficulty }: { onExi
         {snapshot.status === "waiting" && <p className="online-status">Waiting for a player to join…</p>}
         {snapshot.status === "setting-secrets" && !snapshot.yourSecretSet && <form className="guess-form" onSubmit={submitSecret}><label htmlFor="online-secret">{snapshot.playerNames[snapshot.yourRole].toUpperCase()} · YOUR SECRET CODE · {length} DIGITS</label><div className="input-line"><input id="online-secret" inputMode="numeric" maxLength={length} value={secret} onChange={(event) => setSecret(event.target.value.replace(/\D/g, "").slice(0, length))}/><button className="submit" disabled={busy} aria-label="Set secret code">↗</button></div><p className="online-status">Your opponent also sets a code before the first turn.</p></form>}
         {snapshot.status === "setting-secrets" && snapshot.yourSecretSet && <p className="online-status">Waiting for {snapshot.playerNames[snapshot.yourRole === "creator" ? "opponent" : "creator"]} to choose a secret…</p>}
-        {snapshot.status === "guessing" && <><div className="online-status">{isYourTurn ? `Your turn · ${snapshot.attemptsRemaining} guesses left` : `Waiting for ${snapshot.playerNames[snapshot.activePlayer === "creator" ? "creator" : "opponent"]} · turn ${snapshot.turnNumber}`}</div><div className="player-boards online-player-boards">{guessColumn("creator")}{guessColumn("opponent")}</div>{isYourTurn && <form className="guess-form" onSubmit={submitGuess}><label htmlFor="online-guess">YOUR GUESS · {length} DIGITS</label><div className="input-line"><input id="online-guess" inputMode="numeric" maxLength={length} value={guess} onChange={(event) => setGuess(event.target.value.replace(/\D/g, "").slice(0, length))}/><button className="submit" disabled={busy} aria-label="Submit guess">↗</button></div></form>}</>}
+        {snapshot.status === "guessing" && <><div className="online-status">{isYourTurn ? snapshot.unlimitedTries ? "Your turn · unlimited guesses" : `Your turn · ${snapshot.attemptsRemaining} guesses left` : `Waiting for ${snapshot.playerNames[snapshot.activePlayer === "creator" ? "creator" : "opponent"]} · turn ${snapshot.turnNumber}`}</div><div className="player-boards online-player-boards">{guessColumn("creator")}{guessColumn("opponent")}</div>{isYourTurn && <form className="guess-form" onSubmit={submitGuess}><label htmlFor="online-guess">YOUR GUESS · {length} DIGITS</label><div className="input-line"><input id="online-guess" inputMode="numeric" maxLength={length} value={guess} onChange={(event) => setGuess(event.target.value.replace(/\D/g, "").slice(0, length))}/><button className="submit" disabled={busy} aria-label="Submit guess">↗</button></div></form>}</>}
         {finished && <><div className="player-boards online-player-boards">{guessColumn("creator")}{guessColumn("opponent")}</div><div className="online-result"><b>{snapshot.status === "draw" ? "Draw — neither code was cracked." : won ? "You won this round." : "Your opponent won this round."}</b>{snapshot.revealedSecrets && <span>{snapshot.playerNames.creator}’s code: {snapshot.revealedSecrets.creator} · {snapshot.playerNames.opponent}’s code: {snapshot.revealedSecrets.opponent}</span>}<button className="again" disabled={busy || snapshot.rematchRequested} onClick={() => session && void run(() => session.requestRematch())}>{snapshot.rematchRequested ? snapshot.otherRematchRequested ? "Starting next round…" : "Waiting for your opponent…" : "Play again ↗"}</button><button className="leave-room" onClick={exitOnline}>Leave room</button></div></>}
       </>}
       {error && <p className="online-error" role="alert">{error}</p>}

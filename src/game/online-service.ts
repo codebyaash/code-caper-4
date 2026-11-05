@@ -18,6 +18,7 @@ export type OnlineGameRecord = {
   opponentName?: string;
   secretLength: SecretLength;
   difficulty: Difficulty;
+  unlimitedTries?: boolean;
   expiresAt: number;
   roundNumber: number;
   rematchRequests?: Partial<Record<OnlinePlayerRole, boolean>>;
@@ -61,7 +62,8 @@ function toSnapshot(record: OnlineGameRecord, role: OnlinePlayerRole): OnlineSes
     otherSecretSet: role === "creator" ? Boolean(record.opponentSecret) : Boolean(record.creatorSecret),
     activePlayer: record.activePlayer,
     turnNumber: record.turnNumber,
-    attemptsRemaining: role === "creator" ? record.creatorAttemptsRemaining : record.opponentAttemptsRemaining,
+    attemptsRemaining: record.unlimitedTries ? null : role === "creator" ? record.creatorAttemptsRemaining : record.opponentAttemptsRemaining,
+    unlimitedTries: Boolean(record.unlimitedTries),
     guesses: record.guesses,
     playerNames: { creator: record.creatorName || "Player One", opponent: record.opponentName || "Player Two" },
     secretLength: record.secretLength ?? 4,
@@ -95,7 +97,7 @@ export function createOnlineGameService(store: OnlineGameStore) {
   }
 
   return {
-    async createRoom(name = "Player One", secretLength: SecretLength = 4, difficulty: Difficulty = "classic"): Promise<OnlineSessionAccess> {
+    async createRoom(name = "Player One", secretLength: SecretLength = 4, difficulty: Difficulty = "classic", unlimitedTries = false): Promise<OnlineSessionAccess> {
       const cleanName = name.trim().slice(0, 24);
       if (!cleanName || (secretLength !== 4 && secretLength !== 5) || !["classic", "medium", "mystery"].includes(difficulty)) throw new OnlineGameError("INVALID_STATE");
       let roomCode = makeRoomCode();
@@ -111,6 +113,7 @@ export function createOnlineGameService(store: OnlineGameStore) {
         creatorName: cleanName,
         secretLength,
         difficulty,
+        unlimitedTries,
         expiresAt: Date.now() + 60 * 60 * 1000,
         roundNumber: 1,
         creatorToken: randomUUID(),
@@ -165,12 +168,14 @@ export function createOnlineGameService(store: OnlineGameStore) {
       const targetSecret = role === "creator" ? record.opponentSecret : record.creatorSecret;
       const marks = scoreGuess(targetSecret, guess);
       record.guesses = [...record.guesses, { guess, marks, player: role }];
-      if (role === "creator") record.creatorAttemptsRemaining -= 1;
-      else record.opponentAttemptsRemaining -= 1;
+      if (!record.unlimitedTries) {
+        if (role === "creator") record.creatorAttemptsRemaining -= 1;
+        else record.opponentAttemptsRemaining -= 1;
+      }
       if (isWinningGuess(marks)) {
         record.status = "won";
         record.winner = role;
-      } else if (record.creatorAttemptsRemaining === 0 && record.opponentAttemptsRemaining === 0) {
+      } else if (!record.unlimitedTries && record.creatorAttemptsRemaining === 0 && record.opponentAttemptsRemaining === 0) {
         record.status = "draw";
       } else {
         record.activePlayer = role === "creator" ? "opponent" : "creator";
