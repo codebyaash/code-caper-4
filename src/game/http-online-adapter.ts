@@ -1,7 +1,7 @@
 import type { OnlineGameAdapter, OnlineSession, OnlineSessionSnapshot } from "./online-session.ts";
 
 type SessionResponse = { snapshot: OnlineSessionSnapshot; participantToken: string };
-type Action = { action: string; [key: string]: string | number };
+type Action = { action: string; [key: string]: string | number | boolean };
 
 async function readResponse<T>(response: Response): Promise<T> {
   const body: unknown = await response.json();
@@ -71,7 +71,7 @@ export function createHttpOnlineGameAdapter(): OnlineGameAdapter {
     };
   }
 
-  async function createOrJoin(action: "create" | "join", name: string, settings?: { secretLength: number; difficulty: string }, roomCode?: string): Promise<OnlineSession> {
+  async function createOrJoin(action: "create" | "join", name: string, settings?: { secretLength: number; difficulty: string; unlimitedTries: boolean }, roomCode?: string): Promise<OnlineSession> {
     const response = await fetch("/api/online/rooms", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -83,7 +83,7 @@ export function createHttpOnlineGameAdapter(): OnlineGameAdapter {
   }
 
   return {
-    createRoom: (name, secretLength, difficulty) => createOrJoin("create", name, { secretLength, difficulty }),
+    createRoom: (name, secretLength, difficulty, unlimitedTries = false) => createOrJoin("create", name, { secretLength, difficulty, unlimitedTries }),
     joinRoom: (roomCode, name) => createOrJoin("join", name, undefined, roomCode.toUpperCase()),
     async reconnect(roomCode, participantToken) {
       const snapshot = await fetch(`/api/online/rooms/${roomCode}`, {
